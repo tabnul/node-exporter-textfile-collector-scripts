@@ -16,10 +16,10 @@ parse_smartctl_attributes_awk="$(
   cat <<'SMARTCTLAWK'
 $1 ~ /^ *[0-9]+$/ && $2 ~ /^[a-zA-Z0-9_-]+$/ {
   gsub(/-/, "_");
-  printf "%s_value{%s,smart_id=\"%s\"} %d\n", $2, labels, $1, $4
-  printf "%s_worst{%s,smart_id=\"%s\"} %d\n", $2, labels, $1, $5
-  printf "%s_threshold{%s,smart_id=\"%s\"} %d\n", $2, labels, $1, $6
-  printf "%s_raw_value{%s,smart_id=\"%s\"} %e\n", $2, labels, $1, $10
+  printf "%s_value{%s,smart_id=\"%s\"} %d\n", tolower($2), labels, $1, $4
+  printf "%s_worst{%s,smart_id=\"%s\"} %d\n", tolower($2), labels, $1, $5
+  printf "%s_threshold{%s,smart_id=\"%s\"} %d\n", tolower($2), labels, $1, $6
+  printf "%s_raw_value{%s,smart_id=\"%s\"} %e\n", tolower($2), labels, $1, $10
 }
 SMARTCTLAWK
 )"
@@ -75,8 +75,7 @@ parse_smartctl_attributes() {
   local vars="$(echo "${smartmon_attrs}" | xargs | tr ' ' '|')"
   sed 's/^ \+//g' |
     awk -v labels="${labels}" "${parse_smartctl_attributes_awk}" 2>/dev/null |
-    tr A-Z a-z |
-    grep -E "(${smartmon_attrs})"
+    grep -iE "(${smartmon_attrs})"
 }
 
 parse_smartctl_scsi_attributes() {
