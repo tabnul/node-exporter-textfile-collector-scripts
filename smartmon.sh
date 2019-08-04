@@ -100,7 +100,7 @@ parse_smartctl_scsi_attributes() {
 
 extract_labels_from_smartctl_info() {
   local disk="$1" disk_type="$2"
-  local model_family='' device_model='' serial_number='' fw_version='' vendor='' product='' revision='' lun_id=''
+  local model_family='<None>' device_model='<None>' serial_number='<None>' fw_version='<None>' vendor='<None>' product='<None>' revision='<None>' lun_id='<None>'
   while read line; do
     info_type="$(echo "${line}" | cut -f1 -d: | tr ' ' '_')"
     info_value="$(echo "${line}" | cut -f2- -d: | sed 's/^ \+//g' | sed 's/"/\\"/')"
