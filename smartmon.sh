@@ -9,6 +9,8 @@
 
 # Formatting done via shfmt -i 2
 # https://github.com/mvdan/sh
+set -euo pipefail
+IFS=$'\n\t'
 
 parse_smartctl_attributes_awk="$(
   cat <<'SMARTCTLAWK'
