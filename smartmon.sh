@@ -69,9 +69,7 @@ SMARTMONATTRS
 smartmon_attrs="$(echo ${smartmon_attrs} | xargs | tr ' ' '|')"
 
 parse_smartctl_attributes() {
-  local disk="$1"
-  local disk_type="$2"
-  local labels="disk=\"${disk}\",type=\"${disk_type}\""
+  local labels="$1"
   local vars="$(echo "${smartmon_attrs}" | xargs | tr ' ' '|')"
   sed 's/^ \+//g' |
     awk -v labels="${labels}" "${parse_smartctl_attributes_awk}" 2>/dev/null |
@@ -79,9 +77,7 @@ parse_smartctl_attributes() {
 }
 
 parse_smartctl_scsi_attributes() {
-  local disk="$1"
-  local disk_type="$2"
-  local labels="disk=\"${disk}\",type=\"${disk_type}\""
+  local labels="$1"
   while read line; do
     attr_type="$(echo "${line}" | tr '=' ':' | cut -f1 -d: | sed 's/^ \+//g' | tr ' ' '_')"
     attr_value="$(echo "${line}" | tr '=' ':' | cut -f2 -d: | sed 's/^ \+//g')"
@@ -102,8 +98,7 @@ parse_smartctl_scsi_attributes() {
   [ ! -z "$grown_defects" ] && echo "grown_defects_count_raw_value{${labels},smart_id=\"12\"} ${grown_defects}"
 }
 
-parse_smartctl_info() {
-  local -i smart_available=0 smart_enabled=0 smart_healthy=0
+extract_labels_from_smartctl_info() {
   local disk="$1" disk_type="$2"
   local model_family='' device_model='' serial_number='' fw_version='' vendor='' product='' revision='' lun_id=''
   while read line; do
@@ -119,6 +114,16 @@ parse_smartctl_info() {
     Revision) revision="${info_value}" ;;
     Logical_Unit_id) lun_id="${info_value}" ;;
     esac
+  done
+  echo "disk=\"${disk}\",type=\"${disk_type}\",vendor=\"${vendor}\",product=\"${product}\",revision=\"${revision}\",lun_id=\"${lun_id}\",model_family=\"${model_family}\",device_model=\"${device_model}\",serial_number=\"${serial_number}\",firmware_version=\"${fw_version}\""
+}
+
+parse_smartctl_info() {
+  local -i smart_available=0 smart_enabled=0 smart_healthy=0
+  local labels="$1"
+  while read line; do
+    info_type="$(echo "${line}" | cut -f1 -d: | tr ' ' '_')"
+    info_value="$(echo "${line}" | cut -f2- -d: | sed 's/^ \+//g' | sed 's/"/\\"/')"
     if [[ "${info_type}" == 'SMART_support_is' ]]; then
       case "${info_value:0:7}" in
       Enabled) smart_enabled=1 ;;
@@ -136,10 +141,9 @@ parse_smartctl_info() {
       esac
     fi
   done
-  echo "device_info{disk=\"${disk}\",type=\"${disk_type}\",vendor=\"${vendor}\",product=\"${product}\",revision=\"${revision}\",lun_id=\"${lun_id}\",model_family=\"${model_family}\",device_model=\"${device_model}\",serial_number=\"${serial_number}\",firmware_version=\"${fw_version}\"} 1"
-  echo "device_smart_available{disk=\"${disk}\",type=\"${disk_type}\"} ${smart_available}"
-  echo "device_smart_enabled{disk=\"${disk}\",type=\"${disk_type}\"} ${smart_enabled}"
-  echo "device_smart_healthy{disk=\"${disk}\",type=\"${disk_type}\"} ${smart_healthy}"
+  echo "device_smart_available{${labels}} ${smart_available}"
+  echo "device_smart_enabled{${labels}} ${smart_enabled}"
+  echo "device_smart_healthy{${labels}} ${smart_healthy}"
 }
 
 output_format_awk="$(
@@ -180,14 +184,15 @@ for device in ${device_list}; do
   # Skip further metrics to prevent the disk from spinning up
   test ${active} -eq 0 && continue
   # Get the SMART information and health
-  smartctl -i -H -d "${type}" "${disk}" | parse_smartctl_info "${disk}" "${type}"
-
+  smart_info="$(smartctl -i -H -d "${type}" "${disk}")"
+  disk_labels="$(echo "$smart_info" | extract_labels_from_smartctl_info "${disk}" "${type}")"
+  echo "$smart_info" | parse_smartctl_info "${disk_labels}"
   # Get the SMART attributes
   case ${type} in
-  sat) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk}" "${type}" ;;
-  sat+megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk}" "${type}" ;;
-  scsi) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk}" "${type}" ;;
-  megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk}" "${type}" ;;
+  sat) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" ;;
+  sat+megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" ;;
+  scsi) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" ;;
+  megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" ;;
   *)
     echo "disk type is not sat, scsi or megaraid but ${type}"
     exit
