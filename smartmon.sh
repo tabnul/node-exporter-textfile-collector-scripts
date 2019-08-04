@@ -119,7 +119,7 @@ extract_labels_from_smartctl_info() {
 }
 
 parse_smartctl_info() {
-  local -i smart_available=0 smart_enabled=0 smart_healthy=0
+  local -i smart_available=0 smart_enabled=0 smart_healthy=0 sector_size_log=512 sector_size_phy=512
   local labels="$1"
   while read line; do
     info_type="$(echo "${line}" | cut -f1 -d: | tr ' ' '_')"
@@ -139,11 +139,19 @@ parse_smartctl_info() {
       case "${info_value:0:2}" in
       OK) smart_healthy=1 ;;
       esac
+    elif [[ "${info_type}" == 'Sector_Size' ]]; then
+        sector_size_log=$(echo "$info_value" | cut -d' ' -f1)
+        sector_size_phy=$(echo "$info_value" | cut -d' ' -f1)
+    elif [[ "${info_type}" == 'Sector_Sizes' ]]; then
+        sector_size_log="$(echo "$info_value" | cut -d' ' -f1)"
+        sector_size_phy="$(echo "$info_value" | cut -d' ' -f4)"
     fi
   done
   echo "device_smart_available{${labels}} ${smart_available}"
   echo "device_smart_enabled{${labels}} ${smart_enabled}"
   echo "device_smart_healthy{${labels}} ${smart_healthy}"
+  echo "device_sector_size_logical{${labels}} ${sector_size_log}"
+  echo "device_sector_size_physical{${labels}} ${sector_size_phy}"
 }
 
 output_format_awk="$(
