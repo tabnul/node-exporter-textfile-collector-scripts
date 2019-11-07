@@ -230,8 +230,9 @@ for device in ${device_list}; do
   sat+megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" || true ;;
   scsi) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" || true ;;
   megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" || true ;;
+  nvme*) /usr/sbin/smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" || true ;;
   *)
-    echo "disk type is not sat, scsi or megaraid but ${type}"
+      (>&2 echo "disk type is not sat, scsi, nvme or megaraid but ${type}")
     exit
     ;;
   esac
