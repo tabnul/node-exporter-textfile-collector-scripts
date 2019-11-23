@@ -154,6 +154,25 @@ parse_smartctl_info() {
   echo "device_sector_size_physical{${labels}} ${sector_size_phy}"
 }
 
+parse_smartctl_returnvalue() {
+  local returnvalue=$1
+  local labels=$2
+
+  for ((i=0; i<8; i++)); do
+    case $i in
+      0) echo -n "smartctl_statusbit_commandline_not_parsed{${labels}} " ;;
+      1) echo -n "smartctl_statusbit_device_open_failed{${labels}} " ;;
+      2) echo -n "smartctl_statusbit_device_command_failed{${labels}} " ;;
+      3) echo -n "smartctl_statusbit_disk_failing{${labels}} " ;;
+      4) echo -n "smartctl_statusbit_prefail_attributes_below_thresh{${labels}} " ;;
+      5) echo -n "smartctl_statusbit_disk_ok_previous_prefail_attributes{${labels}} " ;;
+      6) echo -n "smartctl_statusbit_device_error_log_has_errors{${labels}} " ;;
+      7) echo -n "smartctl_statusbit_device_selftest_log_has_errors{${labels}} " ;;
+    esac
+    echo "$((status & 2**i && 1))"
+  done
+}
+
 output_format_awk="$(
   cat <<'OUTPUTAWK'
 BEGIN { v = "" }
@@ -191,16 +210,26 @@ for device in ${device_list}; do
   echo "device_active{disk=\"${disk}\",type=\"${type}\"}" "${active}"
   # Skip further metrics to prevent the disk from spinning up
   test ${active} -eq 0 && continue
-  # Get the SMART information and health
+
+  # Get the SMART information and health,
+  # Allow non-zero exit code and store it
+  set +e
   smart_info="$(smartctl -i -H -d "${type}" "${disk}")"
+  status=$?
+  set -e
+
   disk_labels="$(echo "$smart_info" | extract_labels_from_smartctl_info "${disk}" "${type}")"
   echo "$smart_info" | parse_smartctl_info "${disk_labels}"
+
+  # Parse out smartctl's exit code into separate metrics
+  parse_smartctl_returnvalue $status "${disk_labels}"
+
   # Get the SMART attributes
   case ${type} in
-  sat) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" ;;
-  sat+megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" ;;
-  scsi) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" ;;
-  megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" ;;
+  sat) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" || true ;;
+  sat+megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_attributes "${disk_labels}" || true ;;
+  scsi) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" || true ;;
+  megaraid*) smartctl -A -d "${type}" "${disk}" | parse_smartctl_scsi_attributes "${disk_labels}" || true ;;
   *)
     echo "disk type is not sat, scsi or megaraid but ${type}"
     exit
