@@ -119,25 +119,27 @@ extract_labels_from_smartctl_info() {
 }
 
 parse_smartctl_info() {
-  local -i smart_available=0 smart_enabled=0 smart_healthy=0 sector_size_log=512 sector_size_phy=512
+  local -i smart_available=0 smart_enabled=0 smart_healthy='' sector_size_log=512 sector_size_phy=512
   local labels="$1"
   while read line; do
     info_type="$(echo "${line}" | cut -f1 -d: | tr ' ' '_')"
     info_value="$(echo "${line}" | cut -f2- -d: | sed 's/^ \+//g' | sed 's/"/\\"/')"
     if [[ "${info_type}" == 'SMART_support_is' ]]; then
       case "${info_value:0:7}" in
-      Enabled) smart_enabled=1 ;;
-      Availab) smart_available=1 ;;
-      Unavail) smart_available=0 ;;
+      Enabled) smart_available=1; smart_enabled=1 ;;
+      Availab) smart_available=1; smart_enabled=0 ;;
+      Unavail) smart_available=0; smart_enabled=0 ;;
       esac
     fi
     if [[ "${info_type}" == 'SMART_overall-health_self-assessment_test_result' ]]; then
       case "${info_value:0:6}" in
       PASSED) smart_healthy=1 ;;
+      *) smart_healthy=0 ;;
       esac
     elif [[ "${info_type}" == 'SMART_Health_Status' ]]; then
       case "${info_value:0:2}" in
       OK) smart_healthy=1 ;;
+      *) smart_healthy=0 ;;
       esac
     elif [[ "${info_type}" == 'Sector_Size' ]]; then
         sector_size_log=$(echo "$info_value" | cut -d' ' -f1)
@@ -150,6 +152,7 @@ parse_smartctl_info() {
   echo "device_smart_available{${labels}} ${smart_available}"
   echo "device_smart_enabled{${labels}} ${smart_enabled}"
   echo "device_smart_healthy{${labels}} ${smart_healthy}"
+  [[ "${smart_healthy}" != "" ]] && echo "device_smart_healthy{${labels}} ${smart_healthy}"
   echo "device_sector_size_logical{${labels}} ${sector_size_log}"
   echo "device_sector_size_physical{${labels}} ${sector_size_phy}"
 }
