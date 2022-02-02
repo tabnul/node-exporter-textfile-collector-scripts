@@ -42,6 +42,7 @@ media_wearout_indicator
 wear_leveling_count
 nand_writes_1gib
 offline_uncorrectable
+percent_lifetime_remain
 power_cycle_count
 power_on_hours
 program_fail_count
